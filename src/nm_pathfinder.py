@@ -1,9 +1,11 @@
-from math import inf, sqrt
+from math import sqrt
 from queue import Queue
 
 def find_path(source_point, destination_point, mesh):
     path = []
     boxes = {}
+    detail_points = {}
+    line_segments = []
 
     def inRectangle(box, point):
         x1, x2, y1, y2 = box
@@ -21,8 +23,9 @@ def find_path(source_point, destination_point, mesh):
     source_box = findBox(source_point)
     destination_box = findBox(destination_point)
 
-    print(f"Source Box: {source_box}")
-    print(f"Destination Box: {destination_box}")
+    # Initialize detail_points for source and destination
+    detail_points[source_box] = source_point
+    detail_points[destination_box] = destination_point
 
     q = Queue()
     q.put(source_box)
@@ -35,31 +38,48 @@ def find_path(source_point, destination_point, mesh):
 
     while not q.empty():
         current_box = q.get()
-
         if current_box == destination_box:
             break  # Reached the destination, exit the loop
 
         for next_box in mesh['adj'].get(current_box, []):
             if next_box not in reached:
                 reached.add(next_box)
+
+                # Copy the x, y position within the current box
+                current_position = detail_points[current_box]
+
+                # Constrain the position to the bounds of the destination box
+                x1, x2, y1, y2 = next_box
+                constrained_position = (
+                    max(x1, min(x2, current_position[0])),
+                    max(y1, min(y2, current_position[1]))
+                )
+
+                # Update detail_points for the next box
+                detail_points[next_box] = constrained_position
+
+                # Store line segment based on detail points
+                line_segments.append((current_position, constrained_position))
+
                 backpointers[next_box] = current_box
                 q.put(next_box)
 
-    # Reconstruct the path
+    # Reconstruct a simplified path
     current_box = destination_box
     while current_box is not None:
-        path.insert(0, current_box)
+        path.insert(0, detail_points[current_box])
         if current_box not in backpointers:
             path = []  # Reset the path
             break  # Exit the loop if current_box is not in backpointers
         current_box = backpointers[current_box]
-
+    #final destination spot
+    path.append(destination_point)
     if path:
         print("Path found:")
         print(path)
-        print("Boxes explored:")
-        print(list(reached))
+        print("Line Segments:")
+        print(line_segments)
         return path, list(reached)
     else:
         print("No path!")
-        return None, list(reached)  # Return a tuple indicating no path
+        return None, list(reached)
