@@ -2,159 +2,225 @@ import collections
 import pickle
 import sys
 import random
+import traceback
+import Tkinter
+from heapq import heappush, heappop
+from math import sqrt
 
-from matplotlib.pyplot import imread, imsave
-import numpy
-from numpy import zeros_like
-
-
-def build_mesh(image, min_feature_size):
-    def scan(box):
-
-        x1, x2, y1, y2 = box
-        area = (x2 - x1) * (y2 - y1)
-
-        if area < min_feature_size or (image[x1:x2, y1:y2] == 255).all() or (image[x1:x2, y1:y2] == 0).all():
-
-            # this box is simple enough to handle in one node
-            if (image[x1:x2, y1:y2] == 255).all():
-                return [box], []
-            else:
-                return [], []
-
-        else:
-
-            # recursively split this big box on the longest dimension
-            if x2 - x1 > y2 - y1:
-
-                cut = int(x1 + (x2 - x1) / 2 + 1)
-                first_box = (x1, cut, y1, y2)
-                second_box = (cut, x2, y1, y2)
-
-                def rank(b): return (b[2], b[3])
-
-                def first_touch(b): return b[1] == cut
-
-                def second_touch(b): return b[0] == cut
-
-            else:
-
-                cut = int(y1 + (y2 - y1) / 2 + 1)
-                first_box = (x1, x2, y1, cut)
-                second_box = (x1, x2, cut, y2)
-
-                def rank(b): return (b[0], b[1])
-
-                def first_touch(b): return b[3] == cut
-
-                def second_touch(b): return b[2] == cut
-
-            first_boxes, first_edges = scan(first_box)
-            second_boxes, second_edges = scan(second_box)
-
-            my_boxes = []
-            my_edges = []
-
-            my_boxes.extend([fb for fb in first_boxes if not first_touch(fb)])
-            my_boxes.extend(
-                [sb for sb in second_boxes if not second_touch(sb)])
-
-            first_touches = sorted(filter(first_touch, first_boxes), key=rank)
-            second_touches = sorted(
-                filter(second_touch, second_boxes), key=rank)
-
-            first_merges = {}
-            second_merges = {}
-
-            while first_touches and second_touches:
-
-                f, s = first_touches[0], second_touches[0]
-                rf, rs = rank(f), rank(s)
-
-                if rf == rs:
-
-                    first_touches.pop(0)
-                    second_touches.pop(0)
-                    merged = (f[0], s[1], f[2], s[3])
-                    first_merges[f] = merged
-                    second_merges[s] = merged
-                    my_boxes.append(merged)
-
-                elif rf[1] < rs[1]:
-
-                    my_boxes.append(first_touches.pop(0))
-                    if rf[1] >= rs[0]:
-                        my_edges.append((f, s))
-
-                elif rf[1] > rs[1]:
-
-                    my_boxes.append(second_touches.pop(0))
-                    if rf[0] <= rs[1]:
-                        my_edges.append((f, s))
-
-                else:
-
-                    my_boxes.append(first_touches.pop(0))
-                    my_boxes.append(second_touches.pop(0))
-                    my_edges.append((f, s))
-
-            my_boxes.extend(first_touches)
-            my_boxes.extend(second_touches)
-
-            for a, b in first_edges:
-                my_edges.append(
-                    (first_merges.get(a, a), first_merges.get(b, b)))
-
-            for a, b in second_edges:
-                my_edges.append(
-                    (second_merges.get(a, a), second_merges.get(b, b)))
-
-            return my_boxes, my_edges
-
-            # end of scan
-
-    boxes, edges = scan((0, image.shape[0], 0, image.shape[1]))
-
-    adj = collections.defaultdict(list)
-    for a, b in edges:
-        adj[a].append(b)
-        adj[b].append(a)
-
-    mesh = {'boxes': list(adj.keys()), 'adj': dict(adj)}
-
-    return mesh
-
-
-if __name__ == '__main__':
-
-    min_feature_size = 16
-    filename = None
-
-    if len(sys.argv) == 2:
-        filename = sys.argv[1]
-    elif len(sys.argv) == 3:
-        filename = sys.argv[1]
-        min_feature_size = int(sys.argv[2])
-    else:
-        print("usage: %s map_filename min_feature_size" % sys.argv[0])
-        sys.exit(-1)
-
-    img = (imread(filename) * 255).astype(dtype=numpy.uint8)
-    if len(img.shape) > 2:
-        img = img[:, :, 0]
-
-    mesh = build_mesh(img, min_feature_size)
-
-    print(type(mesh))
-    print(mesh.keys())
-
-    with open(filename + '.mesh.pickle', 'wb') as f:
-        pickle.dump(mesh, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-    atlas = zeros_like(img)
-    for x1, x2, y1, y2 in mesh['boxes']:
-        atlas[x1:x2, y1:y2] = random.randint(64, 255)
-
-    imsave(filename + '.mesh.png', atlas)
-
-    print("Built a mesh with %d boxes." % len(mesh['boxes']))
+# This is A*
+def find_path (source_point, destination_point, mesh) :
+	path = []
+	visited = []
+			
+	#Dictionary declarations:
+	prev = {}
+	dist = {}
+	
+	#set dist and prev for src
+	dist[find_box(source_point, mesh)] = 0
+	prev[find_box(source_point, mesh)] = None
+	
+	#q is list of unvisited boxes
+	q = []
+	
+	source_box = find_box(source_point, mesh)
+	
+	#push source_point onto q
+	heappush(q, (0, source_box))
+	
+	destination_box = find_box(destination_point , mesh)
+	inDist = 0
+	altDist = 0
+	#Iterate through q
+	while q:
+		#Store the cell and goal
+		_,cell = heappop(q)
+		
+		#Get all the neighbors of that box
+		neighbors = mesh['adj'][cell]		
+		#If destination, return
+		if cell == destination_box:
+			return (traceback(prev,cell,source_point, destination_point), visited)
+		for n in neighbors:
+			visited.append(n)
+			#alt is the distance from source to this neighbor, with the heuristic too
+			alt = dist[cell] + distance(cell,n)
+			#If this is shorter than the previous shortest
+			if n not in dist or alt < dist[n]:
+				dist[n] = alt
+				prev[n] = cell
+				heappush(q,((alt+distance(n,destination_box)),n))
+	print ("No path possible")
+	return path, visited
+	
+def bidirectional (source_point, destination_point, mesh) :
+	path = []
+	visited = []
+			
+	#Dictionary declarations:
+	prev = {}
+	dist = {}
+	backward_prev = {}
+	backward_dist = {}
+	
+	#set dist and prev for src
+	dist[find_box(source_point, mesh)] = 0
+	prev[find_box(source_point, mesh)] = None
+	
+	#q is list of unvisited boxes
+	q = []
+	
+	source_box = find_box(source_point, mesh)
+	destination_box = find_box(destination_point, mesh)
+	
+	#push source_point onto q
+	heappush(q, (0, source_box, destination_box))
+	
+	destination_box = find_box(destination_point , mesh)
+	inDist = 0
+	altDist = 0
+	#Iterate through q
+	while q:
+		#Store the cell and goal
+		_,cell,curr_goal = heappop(q)
+		
+		#Get all the neighbors of that box
+		neighbors = mesh['adj'][cell]
+		
+		#If destination, return
+		if cell == destination_box:
+			print ("This doesn't happen")
+			return (traceback(prev,cell,source_point, destination_point), visited)
+		for n in neighbors:
+			visited.append(n)
+			#alt is the distance from source to this neighbor, with the heuristic too
+			if curr_goal == destination_box:
+				alt = dist[cell] + distance(cell,n) + distance(cell, destination_box)
+			else:
+				alt = dist[cell] + distance(cell,n) + distance(cell, source_box)
+			#If this is shorter than the previous shortest
+			if n not in dist or alt < dist[n]:
+				dist[n] = alt
+				prev[n] = cell
+				heappush(q,(alt,n, curr_goal))
+	print ("No path possible")
+	return path, visited
+	
+def dijkstas_shortest_path (source_point, destination_point, mesh) :
+	path = []
+	visited = []
+			
+	#Dictionary declarations:
+	prev = {}
+	dist = {}
+	
+	#set dist and prev for src
+	dist[find_box(source_point, mesh)] = 0
+	prev[find_box(source_point, mesh)] = None
+	
+	#q is list of unvisited boxes
+	q = []
+	
+	#push source_point onto q
+	heappush(q, (0,find_box(source_point,mesh)))
+	
+	destination_box = find_box(destination_point , mesh)
+	inDist = 0
+	altDist = 0
+	#Iterate through q
+	while q:
+		#This gets dist, then a node (i,j)
+		u = heappop(q)
+		#Throw away distance, store (x1,x2,y1,y2) in cell
+		_,cell = u
+				
+		#Get all the neighbors of that box
+		neighbors = mesh['adj'][cell]
+		
+		#If destination, return
+		if cell == destination_box:
+			print ("This doesn't happen")
+			return (traceback(prev,cell,source_point, destination_point), visited)
+		for n in neighbors:
+			visited.append(n)
+			#alt is the distance from source to this neighbor
+			alt = dist[cell] + distance(cell,n)
+			#If this is shorter than the previous shortest
+			if n not in dist or alt < dist[n]:
+				dist[n] = alt
+				prev[n] = cell
+				heappush(q,(alt,n))
+	
+	return path, visited
+	
+def traceback(prevlist, cell, src, dest):
+	path = []
+	
+	lastBox = cell
+	cell = prevlist[cell]
+	
+	lastPoint = dest
+	cellPoint = find_border_point(lastPoint, cell)
+	
+	while cell != None:
+		#Append a line between the last and the second-to-last box midpoints
+		cellPoint = find_border_point(lastPoint, cell)
+		path.append((lastPoint, cellPoint))
+		
+		#Last box is now what was second-to-last, cell is now the thing before that
+		lastBox = cell
+		lastPoint = cellPoint
+		#lastBoxMP = midpoint(lastBox)
+		cell = prevlist[cell]
+		
+	#print src
+	path.append((lastPoint,src))
+	return path
+	
+def midpoint(box):
+	x = round((0.5*(box[0]+box[1])), 0)
+	y = round((0.5*(box[2]+box[3])), 0)
+	return (x,y)
+	
+def distance(cell1, cell2):
+	x1 = 0.5*(cell1[0]+cell1[1])
+	y1 = 0.5*(cell1[2]+cell1[3])
+	x2 = 0.5*(cell2[0]+cell2[1])
+	y2 = 0.5*(cell2[2]+cell2[3])
+	# x1, y1 = cell1
+	# x2, y2 = cell2
+	# #Distance formula
+	return sqrt((x2-x1)**2 + (y2-y1)**2)
+	
+def find_box(point, mesh):
+	for box in mesh['boxes']:
+		if box[0] <= point[0] <= box[1] and box[2] <= point[1] <= box[3] :
+			return box
+	return None
+	
+def find_border_point(point, box):
+	"""resultx = point[0]
+	resulty = point[1]
+	
+	if point[0] > box[1]:
+		resultx = box[1]
+	if point[0] < box [0]:
+		resultx = box[0]
+	if point[1] > box[3]:
+		resulty = box[3]
+	if point[1] < box[2]:
+		resulty = box[2]
+	result = (resultx, resulty)
+	return result"""
+	currX = point[0]
+	currY = point[1]
+	
+	borderX1 = box[0]
+	borderX2 = box[1]
+	borderY1 = box[2]
+	borderY2 = box[3]
+	
+	currX = min(borderX2-1,max(borderX1,currX))
+	currY = min(borderY2-1,max(borderY1,currY))
+		
+	return (currX, currY)
