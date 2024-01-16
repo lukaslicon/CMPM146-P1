@@ -1,5 +1,3 @@
-
-'''
 from math import sqrt
 from heapq import heappop, heappush
 
@@ -46,14 +44,13 @@ def find_path(source_point, destination_point, mesh):
     backward_dist[destination_box] = 0
 
     reached_goal = None  # Store the goal when destination is reached
+
     while q:
         current_priority, current_box, current_goal = heappop(q)
-
         print("Current Box:", current_box, "Goal:", current_goal)
         print("Reached:", reached)
 
-        # Check if either forward or backward goal is reached
-        if current_box == destination_box and (current_goal == 'forward' or current_goal == 'backward'):
+        if current_box == destination_box:
             # Store the goal when destination is reached
             reached_goal = current_goal
             break  # Reached the destination, exit the loop
@@ -82,7 +79,7 @@ def find_path(source_point, destination_point, mesh):
                     max(y1, min(y2, current_position[1]))
                 )
                 # Update detail_points for the next box
-                detail_points[next_box] = current_position  # Use current_position, not constrained_position
+                detail_points[next_box] = constrained_position
 
                 # Store line segment based on detail points
                 if current_goal == 'forward':
@@ -115,14 +112,11 @@ def find_path(source_point, destination_point, mesh):
     current_box = destination_box
     while current_box is not None:
         path.insert(0, detail_points[current_box])
-        print("Intermediate Point:", detail_points[current_box])
         if reached_goal == 'forward':
             current_box = forward_prev[current_box]
         else:
             current_box = backward_prev[current_box]
 
-    print("Reached Goal:", reached_goal)
-    print("Final Path:", path)
     # Return only the path and the list of reached points
     if path:
         print("Path found:", path)
@@ -130,6 +124,7 @@ def find_path(source_point, destination_point, mesh):
     else:
         print("No path!")
         return None, list(reached)
+
 
 '''
 from math import sqrt
@@ -161,124 +156,72 @@ def find_path(source_point, destination_point, mesh):
     detail_points[source_box] = source_point
     detail_points[destination_box] = destination_point
 
-    # Initialize forward search
-    forward_q = []
-    heappush(forward_q, (0, source_box))
-    forward_reached = set()
-    forward_reached.add(source_box)
-    forward_backpointers = {}
-    forward_backpointers[source_box] = None
-    forward_distance_table = {}
+    q = []
+    heappush(q, (0, source_box))
 
-    # Initialize backward search
-    backward_q = []
-    heappush(backward_q, (0, destination_box))
-    backward_reached = set()
-    backward_reached.add(destination_box)
-    backward_backpointers = {}
-    backward_backpointers[destination_box] = None
-    backward_distance_table = {}
+    reached = set()
+    reached.add(source_box)
 
-    intersection_box = None
+    backpointers = {}
+    backpointers[source_box] = None
+    # Initialize a distance table to store true distances
+    distance_table = {}
 
-    while forward_q and backward_q:
-        # Forward search
-        current_priority_forward, current_box_forward = heappop(forward_q)
-        true_distance_forward = forward_distance_table.get(current_box_forward, 0)
+    while q:
+        current_box = heappop(q)
 
-        for next_box_forward in mesh['adj'].get(current_box_forward, []):
-            if next_box_forward not in forward_reached:
-                forward_reached.add(next_box_forward)
+        # Recover the true distance from the distance table
+        true_distance = distance_table.get(current_box, 0)
 
-                current_position_forward = detail_points[current_box_forward]
+        if current_box == destination_box:
+            break  # Reached the destination, exit the loop
 
-                x1, x2, y1, y2 = next_box_forward
-                constrained_position_forward = (
-                    max(x1, min(x2, current_position_forward[0])),
-                    max(y1, min(y2, current_position_forward[1]))
+        for next_box in mesh['adj'].get(current_box, []):
+            if next_box not in reached:
+                reached.add(next_box)
+
+                # Copy the x, y position within the current box
+                current_position = detail_points[current_box]
+
+                # Constrain the position to the bounds of the destination box
+                x1, x2, y1, y2 = next_box
+                constrained_position = (
+                    max(x1, min(x2, current_position[0])),
+                    max(y1, min(y2, current_position[1]))
                 )
+                # Update detail_points for the next box
+                detail_points[next_box] = constrained_position
 
-                detail_points[next_box_forward] = constrained_position_forward
-                line_segments.append((current_position_forward, constrained_position_forward))
+                # Store line segment based on detail points
+                line_segments.append((current_position, constrained_position))
 
-                remaining_distance_forward = euclidean(constrained_position_forward, destination_point)
+                # Calculate Euclidean distance to destination for the new detail point
+                remaining_distance = euclidean(constrained_position, destination_point)
 
-                new_priority_forward = true_distance_forward + euclidean(current_position_forward, constrained_position_forward) + remaining_distance_forward
+                # Augment the priority with the remaining distance estimate
+                new_priority = true_distance + euclidean(current_position, constrained_position) + remaining_distance
 
-                forward_backpointers[next_box_forward] = current_box_forward
-                heappush(forward_q, (new_priority_forward, next_box_forward))
+                backpointers[next_box] = current_box
+                heappush(q, (new_priority, next_box))
 
-                forward_distance_table[next_box_forward] = true_distance_forward + euclidean(current_position_forward, constrained_position_forward)
-
-                # Check for intersection between forward and backward searches
-                if next_box_forward in backward_reached:
-                    intersection_box = next_box_forward
-                    break
-
-        if intersection_box:
-            break
-
-        # Backward search
-        current_priority_backward, current_box_backward = heappop(backward_q)
-        true_distance_backward = backward_distance_table.get(current_box_backward, 0)
-
-        for next_box_backward in mesh['adj'].get(current_box_backward, []):
-            if next_box_backward not in backward_reached:
-                backward_reached.add(next_box_backward)
-
-                current_position_backward = detail_points[current_box_backward]
-
-                x1, x2, y1, y2 = next_box_backward
-                constrained_position_backward = (
-                    max(x1, min(x2, current_position_backward[0])),
-                    max(y1, min(y2, current_position_backward[1]))
-                )
-
-                detail_points[next_box_backward] = constrained_position_backward
-                line_segments.append((current_position_backward, constrained_position_backward))
-
-                remaining_distance_backward = euclidean(constrained_position_backward, source_point)
-
-                new_priority_backward = true_distance_backward + euclidean(current_position_backward, constrained_position_backward) + remaining_distance_backward
-
-                backward_backpointers[next_box_backward] = current_box_backward
-                heappush(backward_q, (new_priority_backward, next_box_backward))
-
-                backward_distance_table[next_box_backward] = true_distance_backward + euclidean(current_position_backward, constrained_position_backward)
-
-                # Check for intersection between forward and backward searches
-                if next_box_backward in forward_reached:
-                    intersection_box = next_box_backward
-                    break
-
-        if intersection_box:
-            break
-
-    # Reconstruct path
-    if intersection_box:
-        forward_path = []
-        backward_path = []
-
-        current_box = intersection_box
-        while current_box is not None:
-            forward_path.insert(0, detail_points[current_box])
-            if current_box not in forward_backpointers:
-                break
-            current_box = forward_backpointers[current_box]
-
-        current_box = intersection_box
-        while current_box is not None:
-            backward_path.append(detail_points[current_box])
-            if current_box not in backward_backpointers:
-                break
-            current_box = backward_backpointers[current_box]
-
-        # Combine forward and backward paths
-        path = forward_path + backward_path[1:]
-
+                #Update Distance Table
+                distance_table[next_box] = true_distance + euclidean(current_position, constrained_position)
+                
+    # Reconstruct a simplified path
+    current_box = destination_box
+    while current_box is not None:
+        path.insert(0, detail_points[current_box])
+        if current_box not in backpointers:
+            path = []  # Reset the path
+            break  # Exit the loop if current_box is not in backpointers
+        current_box = backpointers[current_box]
+    # final destination spot
+    path.append(destination_point)
     if path:
-        print("Final Path:", path)
-        return path, list(forward_reached.union(backward_reached))
+        print("Path found:")
+        print(path)
+        return path, list(reached)
     else:
         print("No path!")
-        return None, list(forward_reached.union(backward_reached))
+        return None, list(reached)
+'''
