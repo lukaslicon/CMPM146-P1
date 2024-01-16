@@ -1,137 +1,3 @@
-
-'''
-from math import sqrt
-from heapq import heappop, heappush
-
-def find_path(source_point, destination_point, mesh):
-    path = []
-    boxes = {}
-    detail_points = {}
-    line_segments = []
-    forward_prev = {}
-    backward_prev = {}
-    forward_dist = {}
-    backward_dist = {}
-
-    def inRectangle(box, point):
-        x1, x2, y1, y2 = box
-        ax, ay = point
-        return (ax > x1 and ax < x2 and ay > y1 and ay < y2)
-
-    def findBox(point):
-        for box in mesh['boxes']:
-            if inRectangle(box, point) and box not in boxes:
-                return box
-
-    def euclidean(a, b):
-        return sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2) * 0.5
-
-    source_box = findBox(source_point)
-    destination_box = findBox(destination_point)
-
-    # Initialize detail_points for source and destination
-    detail_points[source_box] = source_point
-    detail_points[destination_box] = destination_point
-
-    q = []
-    heappush(q, (0, source_box, 'forward'))
-    heappush(q, (0, destination_box, 'backward'))
-    
-    reached = set()
-    reached.add(source_box)
-
-    forward_prev[source_box] = None
-    backward_prev[destination_box] = None
-    forward_dist[source_box] = 0
-    backward_dist[destination_box] = 0
-
-    reached_goal = None  # Store the goal when destination is reached
-    while q:
-        current_priority, current_box, current_goal = heappop(q)
-
-        print("Current Box:", current_box, "Goal:", current_goal)
-        print("Reached:", reached)
-
-        # Check if either forward or backward goal is reached
-        if current_box == destination_box and (current_goal == 'forward' or current_goal == 'backward'):
-            # Store the goal when destination is reached
-            reached_goal = current_goal
-            break  # Reached the destination, exit the loop
-
-        # Recover the true distance from the distance tables
-        true_distance = forward_dist.get(current_box, 0) if current_goal == 'forward' else backward_dist.get(current_box, 0)
-
-        for next_box in mesh['adj'].get(current_box, []):
-            if current_goal == 'forward':
-                prev_table = forward_prev
-                dist_table = forward_dist
-            else:
-                prev_table = backward_prev
-                dist_table = backward_dist
-
-            if next_box not in reached:
-                reached.add(next_box)
-
-                # Copy the x, y position within the current box
-                current_position = detail_points[current_box]
-
-                # Constrain the position to the bounds of the destination box
-                x1, x2, y1, y2 = next_box
-                constrained_position = (
-                    max(x1, min(x2, current_position[0])),
-                    max(y1, min(y2, current_position[1]))
-                )
-                # Update detail_points for the next box
-                detail_points[next_box] = current_position  # Use current_position, not constrained_position
-
-                # Store line segment based on detail points
-                if current_goal == 'forward':
-                    line_segments.append((current_position, constrained_position))
-                else:
-                    line_segments.insert(0, (constrained_position, current_position))
-
-                # Calculate Euclidean distance to destination for the new detail point
-                remaining_distance = euclidean(constrained_position, destination_point)
-
-                # Adjust the remaining distance based on the search direction
-                if current_goal == 'forward':
-                    remaining_distance_forward = remaining_distance
-                    remaining_distance_backward = euclidean(constrained_position, source_point)
-                else:
-                    remaining_distance_forward = euclidean(constrained_position, destination_point)
-                    remaining_distance_backward = remaining_distance
-
-                # Augment the priority with the adjusted remaining distance estimate
-                new_priority = true_distance + euclidean(current_position, constrained_position) + remaining_distance_forward + remaining_distance_backward
-                print("Next Box:", next_box, "Priority:", new_priority)
-
-                prev_table[next_box] = current_box
-                heappush(q, (new_priority, next_box, current_goal))
-
-                # Update Distance Table
-                dist_table[next_box] = true_distance + euclidean(current_position, constrained_position)
-
-    # Reconstruct a simplified path using the stored goal
-    current_box = destination_box
-    while current_box is not None:
-        path.insert(0, detail_points[current_box])
-        print("Intermediate Point:", detail_points[current_box])
-        if reached_goal == 'forward':
-            current_box = forward_prev[current_box]
-        else:
-            current_box = backward_prev[current_box]
-
-    print("Reached Goal:", reached_goal)
-    print("Final Path:", path)
-    # Return only the path and the list of reached points
-    if path:
-        print("Path found:", path)
-        return path, list(reached)
-    else:
-        print("No path!")
-        return None, list(reached)
-
-'''
 from math import sqrt
 from heapq import heappop, heappush
 
@@ -149,20 +15,22 @@ def find_path(source_point, destination_point, mesh):
     def findBox(point):
         for box in mesh['boxes']:
             if inRectangle(box, point) and box not in boxes:
-                return box
+                return box  
 
     def euclidean(a, b):
-        return sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2) * 0.5
+        return sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
 
     source_box = findBox(source_point)
     destination_box = findBox(destination_point)
 
     # Check if source and destination are in the same box
     if source_box == destination_box:
+        print("Final Path:", [source_point, destination_point])
         return [source_point, destination_point], [source_box]
 
     if source_box in mesh['adj'].get(destination_box, []) or destination_box in mesh['adj'].get(source_box, []):
         # Create a direct connection between source and destination within the adjacent boxes
+        print("Final Path:", [source_point, destination_point])
         return [source_point, destination_point], [source_box, destination_box]
 
     # Initialize detail_points for source and destination
@@ -188,6 +56,10 @@ def find_path(source_point, destination_point, mesh):
     backward_distance_table = {}
 
     intersection_box = None
+    intersection_point_forward = None
+    intersection_point_backward = None
+    next_box_forward = None 
+    next_box_backward = None
 
     while forward_q and backward_q:
         # Forward search
@@ -221,7 +93,19 @@ def find_path(source_point, destination_point, mesh):
                 # Check for intersection between forward and backward searches
                 if next_box_forward in backward_reached:
                     intersection_box = next_box_forward
-                    break
+                    intersection_point_forward = constrained_position_forward
+
+                    # Check if the intersection point is on the line segment
+                    if intersection_point_backward:
+                        # Calculate the intersection point based on both searches
+                        intersection_point = (
+                            (intersection_point_forward[0] + intersection_point_backward[0]) / 2,
+                            (intersection_point_forward[1] + intersection_point_backward[1]) / 2
+                        )
+
+                        # Check if the intersection point is within the boundaries of the intersected boxes
+                        if inRectangle(next_box_forward, intersection_point) and inRectangle(next_box_backward, intersection_point):
+                            break
 
         if intersection_box:
             break
@@ -257,7 +141,19 @@ def find_path(source_point, destination_point, mesh):
                 # Check for intersection between forward and backward searches
                 if next_box_backward in forward_reached:
                     intersection_box = next_box_backward
-                    break
+                    intersection_point_backward = constrained_position_backward
+
+                    # Check if the intersection point is on the line segment
+                    if intersection_point_forward:
+                        # Calculate the intersection point based on both searches
+                        intersection_point = (
+                            (intersection_point_forward[0] + intersection_point_backward[0]) / 2,
+                            (intersection_point_forward[1] + intersection_point_backward[1]) / 2
+                        )
+
+                        # Check if the intersection point is within the boundaries of the intersected boxes
+                        if inRectangle(next_box_forward, intersection_point) and inRectangle(next_box_backward, intersection_point):
+                            break
 
         if intersection_box:
             break
@@ -287,6 +183,8 @@ def find_path(source_point, destination_point, mesh):
     if path:
         print("Final Path:", path)
         # union returns a set that contains all items from both sets
+        print(forward_path)
+        print(backward_path)
         return path, list(forward_reached.union(backward_reached))
     else:
         print("No path!")
