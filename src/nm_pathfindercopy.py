@@ -99,5 +99,3 @@ def find_path(source_point, destination_point, mesh):
     else:
         print("No path!")
         return None, list(reached)
-
-
