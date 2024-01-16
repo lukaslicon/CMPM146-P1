@@ -157,6 +157,14 @@ def find_path(source_point, destination_point, mesh):
     source_box = findBox(source_point)
     destination_box = findBox(destination_point)
 
+    # Check if source and destination are in the same box
+    if source_box == destination_box:
+        return [source_point, destination_point], [source_box]
+
+    if source_box in mesh['adj'].get(destination_box, []) or destination_box in mesh['adj'].get(source_box, []):
+        # Create a direct connection between source and destination within the adjacent boxes
+        return [source_point, destination_point], [source_box, destination_box]
+
     # Initialize detail_points for source and destination
     detail_points[source_box] = source_point
     detail_points[destination_box] = destination_point
@@ -278,7 +286,8 @@ def find_path(source_point, destination_point, mesh):
 
     if path:
         print("Final Path:", path)
+        # union returns a set that contains all items from both sets
         return path, list(forward_reached.union(backward_reached))
     else:
         print("No path!")
-        return None, list(forward_reached.union(backward_reached))
+        return path, list(forward_reached.union(backward_reached))
