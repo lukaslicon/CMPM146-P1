@@ -120,9 +120,3 @@ python nm_meshbuilder.py ucsc_banana_slug.png
 # Running the pathfinding visualization
 python nm_interactive.py ucsc_banana_slug-orig.png ucsc_banana_slug.png.mesh.pickle 1
 ```
-
-## Additional Notes
-
-- The origin of the coordinate system is at the top left corner, with x and y increasing towards the bottom right.
-- Use the Euclidean distance for estimating the remaining distance in A*.
-- For bidirectional search, ensure you handle the merging of the two search frontiers correctly.
